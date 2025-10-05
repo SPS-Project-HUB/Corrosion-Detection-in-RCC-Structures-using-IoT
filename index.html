@@ -116,6 +116,11 @@
             color: var(--secondary-color);
             margin-bottom: 15px;
         }
+
+        .progress {
+            height: 8px;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -175,7 +180,10 @@
                         </div>
                         <h5>Flex Sensor</h5>
                         <div class="sensor-value" id="flexValue">--</div>
-                        <small class="sensor-unit">ADC Value</small>
+                        <small class="sensor-unit">%</small>
+                        <div class="progress">
+                            <div id="flexProgress" class="progress-bar bg-info" role="progressbar" style="width: 0%"></div>
+                        </div>
                     </div>
                 </div>
                 <div class="col-md-2 col-6">
@@ -185,7 +193,10 @@
                         </div>
                         <h5>Moisture</h5>
                         <div class="sensor-value" id="moistureValue">--</div>
-                        <small class="sensor-unit">Level</small>
+                        <small class="sensor-unit">%</small>
+                        <div class="progress">
+                            <div id="moistureProgress" class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
+                        </div>
                     </div>
                 </div>
                 <div class="col-md-2 col-6">
@@ -206,6 +217,9 @@
                         <h5>Humidity</h5>
                         <div class="sensor-value" id="humidityValue">--</div>
                         <small class="sensor-unit">%</small>
+                        <div class="progress">
+                            <div id="humidityProgress" class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div>
+                        </div>
                     </div>
                 </div>
                 <div class="col-md-2 col-6">
@@ -247,7 +261,7 @@
                 <div class="col-md-6">
                     <div class="card">
                         <div class="card-header">
-                            <i class="fas fa-chart-bar me-2"></i>Current vs Baseline Comparison
+                            <i class="fas fa-chart-bar me-2"></i>Current vs Baseline Comparison (%)
                         </div>
                         <div class="card-body">
                             <div class="chart-container">
@@ -301,8 +315,20 @@
         let humidityData = [];
         const maxDataPoints = 30;
 
+        // ESP32 ADC range (12-bit: 0-4095)
+        const ADC_MAX = 4095;
+        const ADC_MIN = 0;
+
         // Chart instances
         let sensorChart, comparisonChart;
+
+        // Convert ADC value to percentage (0-100%)
+        function adcToPercentage(adcValue) {
+            // Ensure the value is within ADC range
+            const clampedValue = Math.max(ADC_MIN, Math.min(ADC_MAX, adcValue));
+            // Convert to percentage
+            return ((clampedValue - ADC_MIN) / (ADC_MAX - ADC_MIN)) * 100;
+        }
 
         // Initialize charts
         function initializeCharts() {
@@ -314,28 +340,40 @@
                     labels: timeLabels,
                     datasets: [
                         {
-                            label: 'Flex Sensor',
+                            label: 'Flex Sensor (%)',
                             data: flexData,
                             borderColor: '#3498db',
                             backgroundColor: 'rgba(52, 152, 219, 0.1)',
                             tension: 0.4,
-                            fill: true
+                            fill: true,
+                            yAxisID: 'yPercentage'
                         },
                         {
-                            label: 'Moisture',
+                            label: 'Moisture (%)',
                             data: moistureData,
                             borderColor: '#9b59b6',
                             backgroundColor: 'rgba(155, 89, 182, 0.1)',
                             tension: 0.4,
-                            fill: true
+                            fill: true,
+                            yAxisID: 'yPercentage'
                         },
                         {
-                            label: 'Temperature °C',
+                            label: 'Temperature (°C)',
                             data: temperatureData,
                             borderColor: '#e74c3c',
                             backgroundColor: 'rgba(231, 76, 60, 0.1)',
                             tension: 0.4,
-                            fill: true
+                            fill: true,
+                            yAxisID: 'yTemperature'
+                        },
+                        {
+                            label: 'Humidity (%)',
+                            data: humidityData,
+                            borderColor: '#2ecc71',
+                            backgroundColor: 'rgba(46, 204, 113, 0.1)',
+                            tension: 0.4,
+                            fill: true,
+                            yAxisID: 'yPercentage'
                         }
                     ]
                 },
@@ -343,8 +381,28 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     scales: {
-                        y: {
-                            beginAtZero: true
+                        yPercentage: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'Percentage (%)'
+                            },
+                            min: 0,
+                            max: 100
+                        },
+                        yTemperature: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Temperature (°C)'
+                            },
+                            grid: {
+                                drawOnChartArea: false
+                            }
                         }
                     },
                     plugins: {
@@ -364,7 +422,7 @@
             comparisonChart = new Chart(comparisonCtx, {
                 type: 'bar',
                 data: {
-                    labels: ['Flex', 'Moisture', 'Temperature', 'Resistance'],
+                    labels: ['Flex (%)', 'Moisture (%)', 'Humidity (%)', 'Resistance'],
                     datasets: [
                         {
                             label: 'Current',
@@ -381,13 +439,22 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Values'
+                            }
+                        }
+                    },
                     plugins: {
                         legend: {
                             position: 'top',
                         },
                         title: {
                             display: true,
-                            text: 'Current vs Baseline Values'
+                            text: 'Current vs Baseline Comparison'
                         }
                     }
                 }
@@ -398,10 +465,14 @@
         function updateSensorData(timestamp, data) {
             const time = new Date().toLocaleTimeString();
             
+            // Convert ADC values to percentage for flex and moisture
+            const flexPercentage = adcToPercentage(data.flex_sensor);
+            const moisturePercentage = adcToPercentage(data.moisture_level);
+            
             // Add new data
             timeLabels.push(time);
-            flexData.push(data.flex_sensor);
-            moistureData.push(data.moisture_level);
+            flexData.push(flexPercentage);
+            moistureData.push(moisturePercentage);
             temperatureData.push(data.temperature_c);
             resistanceData.push(data.resistance_ohms);
             humidityData.push(data.humidity_percent);
@@ -421,16 +492,20 @@
             
             // Update comparison chart if baseline exists
             if (data.has_baseline) {
+                // Convert baseline values to percentage
+                const baselineFlexPercentage = adcToPercentage(data.baseline_flex);
+                const baselineMoisturePercentage = adcToPercentage(data.baseline_moisture);
+                
                 comparisonChart.data.datasets[0].data = [
-                    data.flex_sensor,
-                    data.moisture_level,
-                    data.temperature_c,
+                    flexPercentage,
+                    moisturePercentage,
+                    data.humidity_percent,
                     data.resistance_ohms
                 ];
                 comparisonChart.data.datasets[1].data = [
-                    data.baseline_flex,
-                    data.baseline_moisture,
-                    data.baseline_temperature,
+                    baselineFlexPercentage,
+                    baselineMoisturePercentage,
+                    data.baseline_humidity || 0,
                     data.baseline_resistance
                 ];
                 comparisonChart.update();
@@ -439,12 +514,21 @@
 
         // Update display with live data
         function updateDisplay(data) {
-            // Update sensor values
-            document.getElementById('flexValue').textContent = data.flex_sensor.toFixed(2);
-            document.getElementById('moistureValue').textContent = data.moisture_level.toFixed(2);
-            document.getElementById('tempValue').textContent = data.temperature_c.toFixed(2);
-            document.getElementById('humidityValue').textContent = data.humidity_percent.toFixed(2);
-            document.getElementById('resistanceValue').textContent = data.resistance_ohms.toFixed(2);
+            // Convert ADC values to percentage
+            const flexPercentage = adcToPercentage(data.flex_sensor);
+            const moisturePercentage = adcToPercentage(data.moisture_level);
+            
+            // Update sensor values with percentage
+            document.getElementById('flexValue').textContent = flexPercentage.toFixed(1);
+            document.getElementById('moistureValue').textContent = moisturePercentage.toFixed(1);
+            document.getElementById('tempValue').textContent = data.temperature_c.toFixed(1);
+            document.getElementById('humidityValue').textContent = data.humidity_percent.toFixed(1);
+            document.getElementById('resistanceValue').textContent = data.resistance_ohms.toFixed(0);
+            
+            // Update progress bars
+            document.getElementById('flexProgress').style.width = flexPercentage + '%';
+            document.getElementById('moistureProgress').style.width = moisturePercentage + '%';
+            document.getElementById('humidityProgress').style.width = data.humidity_percent + '%';
             
             // Update status
             document.getElementById('lastUpdated').textContent = `Last Updated: ${data.timestamp}`;
