@@ -1,0 +1,225 @@
+#include <WiFi.h>
+#include <Firebase_ESP_Client.h>
+#include "max6675.h"
+#include <NTPClient.h>
+#include <WiFiUdp.h>
+
+// ---------------- WIFI CONFIGURATION ----------------
+#define WIFI_SSID "iPhone"
+#define WIFI_PASSWORD "murugaraj6385479706"
+
+// ---------------- FIREBASE CONFIGURATION ----------------
+#define DATABASE_URL "https://corrosion-detection-in-rcc-default-rtdb.asia-southeast1.firebasedatabase.app/"
+#define DATABASE_SECRET "Cg6DDzmAHbeq3Om5c7PAqXoqQIWwj5gJp8HLGgBn"
+
+FirebaseData fbdo;
+FirebaseAuth auth;
+FirebaseConfig config;
+
+// ---------------- SENSOR PINS ----------------
+#define FLEX_PIN 35
+#define MOISTURE_PIN 34
+#define RESIST_PIN 32
+#define BUTTON_PIN 33
+#define BUZZER_PIN 25
+
+// MAX6675 Thermocouple Pins
+#define thermoCLK 18
+#define thermoCS  5  
+#define thermoDO  19
+
+MAX6675 thermocouple(thermoCLK, thermoCS, thermoDO);
+
+// ---------------- CONSTANTS ----------------
+const float Vin = 3.3;
+const float R1 = 10000.0;
+const float threshold = 20.0;
+
+// ---------------- NTP TIME ----------------
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "pool.ntp.org", 19800);
+
+// ---------------- STORED BASELINE READINGS ----------------
+float storedFlex = 0;
+float storedMoist = 0;
+float storedTemp = 0;
+float storedRes = 0;
+bool hasStoredReadings = false;
+unsigned long lastStoredTime = 0;
+int alertCount = 0;
+
+// ---------------- FUNCTION DECLARATIONS ----------------
+float readResistance();
+float calcHumidityFromTemp(float temp);
+void storeCurrentReadings(float flex, float moist, float temp, float res, String timestamp);
+void checkForAlerts(float flex, float moist, float temp, float res, String timestamp);
+void sendLiveDataToFirebase(float flex, float moist, float temp, float res, float humidity, String timestamp);
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);
+
+  Serial.println("🚀 Starting Professional Corrosion Detection System...");
+  
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print(".");
+    delay(500);
+  }
+  Serial.println("\n✅ WiFi Connected!");
+
+  config.database_url = DATABASE_URL;
+  config.signer.tokens.legacy_token = DATABASE_SECRET;
+  Firebase.begin(&config, &auth);
+  Firebase.reconnectWiFi(true);
+  Serial.println("✅ Firebase Initialized");
+
+  timeClient.begin();
+  delay(500);
+  
+  Serial.println("📊 System Ready - Professional Mode Active");
+}
+
+float readResistance() {
+  int adc = analogRead(RESIST_PIN);
+  float Vout = (adc / 4095.0) * Vin;
+  if (Vout <= 0.01) return 0;
+  float R2 = R1 * ((Vin / Vout) - 1);
+  return R2;
+}
+
+float calcHumidityFromTemp(float temp) {
+  float hum = 100 - (temp * 0.8);
+  if (hum < 0) hum = 0;
+  if (hum > 100) hum = 100;
+  return hum;
+}
+
+void storeCurrentReadings(float flex, float moist, float temp, float res, String timestamp) {
+  storedFlex = flex;
+  storedMoist = moist;
+  storedTemp = temp;
+  storedRes = res;
+  hasStoredReadings = true;
+  lastStoredTime = millis();
+
+  Serial.println("\n💾 STORING BASELINE READINGS...");
+  
+  FirebaseJson storedData;
+  storedData.set("flex", storedFlex);
+  storedData.set("moisture", storedMoist);
+  storedData.set("temperature", storedTemp);
+  storedData.set("resistance", storedRes);
+  storedData.set("timestamp", timestamp);
+
+  if (Firebase.RTDB.setJSON(&fbdo, "/baseline", &storedData)) {
+    Serial.println("✅ Baseline stored in Firebase!");
+  }
+}
+
+void checkForAlerts(float flex, float moist, float temp, float res, String timestamp) {
+  if (!hasStoredReadings) return;
+
+  bool alertTriggered = false;
+  String alertMessage = "Significant deviations detected:\\n";
+
+  if (abs(flex - storedFlex) / storedFlex * 100 > threshold) {
+    alertMessage += "• Flex: " + String(flex) + " vs " + String(storedFlex) + "\\n";
+    alertTriggered = true;
+  }
+  
+  if (abs(moist - storedMoist) / storedMoist * 100 > threshold) {
+    alertMessage += "• Moisture: " + String(moist) + " vs " + String(storedMoist) + "\\n";
+    alertTriggered = true;
+  }
+  
+  if (abs(temp - storedTemp) / storedTemp * 100 > threshold) {
+    alertMessage += "• Temperature: " + String(temp) + "°C vs " + String(storedTemp) + "°C\\n";
+    alertTriggered = true;
+  }
+  
+  if (abs(res - storedRes) / storedRes * 100 > threshold) {
+    alertMessage += "• Resistance: " + String(res) + "Ω vs " + String(storedRes) + "Ω\\n";
+    alertTriggered = true;
+  }
+
+  if (alertTriggered) {
+    alertCount++;
+    Serial.println("🚨 ALERT TRIGGERED!");
+    
+    digitalWrite(BUZZER_PIN, HIGH);
+    delay(1000);
+    digitalWrite(BUZZER_PIN, LOW);
+
+    FirebaseJson faultData;
+    faultData.set("Flex_Sensor", flex);
+    faultData.set("Moisture_Level", moist);
+    faultData.set("Temperature_C", temp);
+    faultData.set("Resistance_Ohms", res);
+    faultData.set("Stored_Flex", storedFlex);
+    faultData.set("Stored_Moisture", storedMoist);
+    faultData.set("Stored_Temperature", storedTemp);
+    faultData.set("Stored_Resistance", storedRes);
+    faultData.set("Timestamp", timestamp);
+    faultData.set("Alert_Message", alertMessage);
+    faultData.set("Alert_ID", alertCount);
+
+    Firebase.RTDB.pushJSON(&fbdo, "/Fault_Logs", &faultData);
+  }
+}
+
+void sendLiveDataToFirebase(float flex, float moist, float temp, float res, float humidity, String timestamp) {
+  FirebaseJson liveData;
+  liveData.set("flex_sensor", flex);
+  liveData.set("moisture_level", moist);
+  liveData.set("temperature_c", temp);
+  liveData.set("resistance_ohms", res);
+  liveData.set("humidity_percent", humidity);
+  liveData.set("timestamp", timestamp);
+  liveData.set("has_baseline", hasStoredReadings);
+  
+  if (hasStoredReadings) {
+    liveData.set("baseline_flex", storedFlex);
+    liveData.set("baseline_moisture", storedMoist);
+    liveData.set("baseline_temperature", storedTemp);
+    liveData.set("baseline_resistance", storedRes);
+  }
+
+  Firebase.RTDB.setJSON(&fbdo, "/live_data", &liveData);
+}
+
+void loop() {
+  timeClient.update();
+  String timestamp = timeClient.getFormattedTime();
+
+  float flexVal = analogRead(FLEX_PIN);
+  float moistVal = analogRead(MOISTURE_PIN);
+  double tempVal = thermocouple.readCelsius();
+  float resistVal = readResistance();
+  float humidity = calcHumidityFromTemp(tempVal);
+
+  // Display readings
+  Serial.println("=== LIVE READINGS ===");
+  Serial.println("Timestamp: " + timestamp);
+  Serial.printf("Flex: %.2f | Moisture: %.2f | Temp: %.2f°C | Humidity: %.2f%% | Resistance: %.2fΩ\n", 
+                flexVal, moistVal, tempVal, humidity, resistVal);
+
+  // Send to Firebase
+  sendLiveDataToFirebase(flexVal, moistVal, tempVal, resistVal, humidity, timestamp);
+
+  // Check button press
+  if (digitalRead(BUTTON_PIN) == LOW) {
+    delay(50);
+    if (digitalRead(BUTTON_PIN) == LOW) {
+      storeCurrentReadings(flexVal, moistVal, tempVal, resistVal, timestamp);
+      delay(1000);
+    }
+  }
+
+  // Check for alerts
+  checkForAlerts(flexVal, moistVal, tempVal, resistVal, timestamp);
+
+  delay(2000); // 2-second interval
+}
