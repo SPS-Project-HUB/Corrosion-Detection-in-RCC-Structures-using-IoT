@@ -1,303 +1,719 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>RCC Corrosion Monitor — Dashboard</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <style>
-    :root{
-      --bg:#f6f8fb; --card:#ffffff; --muted:#6b7280; --accent:#ef4444;
-      --good:#10b981; --bad:#ef4444; --glass: rgba(255,255,255,0.6);
-    }
-    body{font-family:Inter,ui-sans-serif,system-ui,Arial;margin:0;padding:20px;background:linear-gradient(180deg,#eef2ff 0%,var(--bg)100%);}
-    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;}
-    h1{font-size:20px;margin:0}
-    .container{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
-    .card{background:var(--card);border-radius:10px;padding:14px;box-shadow:0 6px 18px rgba(11,15,30,0.06);}
-    .full {grid-column:1/-1;}
-    .label{color:var(--muted);font-size:12px}
-    .value{font-weight:700;font-size:20px;margin-top:6px}
-    .progress {height:12px;background:#eee;border-radius:8px;overflow:hidden;margin-top:8px}
-    .bar{height:100%;width:0%;border-radius:8px;transition:width .6s ease}
-    .flex {display:flex;gap:12px;align-items:center}
-    table{width:100%;border-collapse:collapse;font-size:13px}
-    th,td{padding:8px;text-align:left;border-bottom:1px solid #f1f3f5}
-    th{font-weight:600;color:var(--muted);font-size:12px}
-    .alert-badge{background:var(--accent);color:white;padding:6px 10px;border-radius:999px;font-weight:700;display:inline-flex;align-items:center;gap:8px}
-    .muted {color:var(--muted);font-size:13px}
-    .flash {animation: pulse 1s ease 3; box-shadow:0 0 12px rgba(239,68,68,0.22)}
-    @keyframes pulse {0%{transform:scale(1)}50%{transform:scale(1.02)}100%{transform:scale(1)}}
-    .log-empty{padding:18px;text-align:center;color:var(--muted)}
-    .small {font-size:12px;color:var(--muted)}
-    footer{margin-top:18px;color:var(--muted);font-size:13px}
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Corrosion Detection System Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --secondary: #3498db;
+            --success: #2ecc71;
+            --warning: #f39c12;
+            --danger: #e74c3c;
+            --light: #ecf0f1;
+            --dark: #2c3e50;
+            --gray: #95a5a6;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .dashboard-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .logo i {
+            font-size: 2rem;
+        }
+        
+        .logo h1 {
+            font-size: 1.8rem;
+            font-weight: 600;
+        }
+        
+        .status-indicator {
+            background-color: rgba(255,255,255,0.2);
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: var(--success);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .card {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .card-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .card-title i {
+            color: var(--secondary);
+        }
+        
+        .value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin: 10px 0;
+        }
+        
+        .unit {
+            font-size: 1rem;
+            color: var(--gray);
+            margin-left: 5px;
+        }
+        
+        .trend {
+            display: flex;
+            align-items: center;
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+        
+        .trend.up {
+            color: var(--success);
+        }
+        
+        .trend.down {
+            color: var(--danger);
+        }
+        
+        .chart-container {
+            height: 200px;
+            margin-top: 15px;
+        }
+        
+        .alert-badge {
+            background-color: var(--danger);
+            color: white;
+            border-radius: 20px;
+            padding: 3px 10px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        .fault-log {
+            grid-column: 1 / -1;
+        }
+        
+        .fault-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .fault-item {
+            padding: 15px;
+            border-left: 4px solid var(--danger);
+            background-color: #fff5f5;
+            margin-bottom: 10px;
+            border-radius: 0 5px 5px 0;
+        }
+        
+        .fault-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        
+        .fault-timestamp {
+            font-size: 0.9rem;
+            color: var(--gray);
+        }
+        
+        .fault-values {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            font-size: 0.9rem;
+        }
+        
+        .fault-value {
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .fault-value span:first-child {
+            font-weight: 600;
+            color: var(--dark);
+        }
+        
+        .fault-value span:last-child {
+            color: var(--danger);
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+        
+        button {
+            background-color: var(--secondary);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        button:hover {
+            background-color: #2980b9;
+        }
+        
+        button.danger {
+            background-color: var(--danger);
+        }
+        
+        button.danger:hover {
+            background-color: #c0392b;
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 30px;
+            padding: 20px;
+            color: var(--gray);
+            font-size: 0.9rem;
+            border-top: 1px solid #eee;
+        }
+        
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+            
+            .controls {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            button {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
 </head>
 <body>
-  <header>
-    <div>
-      <h1>RCC Corrosion Monitor</h1>
-      <div class="small">Live readings & fault logs (Realtime)</div>
-    </div>
-    <div id="status" class="muted">Connecting…</div>
-  </header>
-
-  <main class="container">
-    <div class="card">
-      <div class="label">Device</div>
-      <div class="value" id="deviceId">rcc_sensor_01</div>
-      <div class="small" style="margin-top:8px">Latest timestamp: <span id="timestamp">—</span></div>
-    </div>
-
-    <div class="card">
-      <div class="label">Alert Status</div>
-      <div style="margin-top:8px">
-        <div id="alertBadge" class="alert-badge" style="display:none">⚠️ ALERT</div>
-        <div id="noAlert" class="muted">No active alerts</div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="label">Connection</div>
-      <div class="value" id="connState">—</div>
-      <div class="small" style="margin-top:8px">Realtime DB: <span id="dbUrl"></span></div>
-    </div>
-
-    <!-- Current Readings -->
-    <div class="card full" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
-      <div>
-        <div class="label">Temperature (°C)</div>
-        <div class="value" id="tempVal">—</div>
-        <div class="progress"><div id="tempBar" class="bar" style="background:linear-gradient(90deg,#f97316,#f43f5e)"></div></div>
-      </div>
-      <div>
-        <div class="label">Humidity (%)</div>
-        <div class="value" id="humVal">—</div>
-        <div class="progress"><div id="humBar" class="bar" style="background:linear-gradient(90deg,#06b6d4,#3b82f6)"></div></div>
-      </div>
-      <div>
-        <div class="label">Moisture (%)</div>
-        <div class="value" id="moistVal">—</div>
-        <div class="progress"><div id="moistBar" class="bar" style="background:linear-gradient(90deg,#8b5cf6,#06b6d4)"></div></div>
-      </div>
-      <div>
-        <div class="label">Flex (%)</div>
-        <div class="value" id="flexVal">—</div>
-        <div class="progress"><div id="flexBar" class="bar" style="background:linear-gradient(90deg,#34d399,#10b981)"></div></div>
-      </div>
-    </div>
-
-    <div class="card" style="grid-column:1/3">
-      <div class="label">Resistance (Ω)</div>
-      <div class="value" id="resVal">—</div>
-      <div class="small" id="resNote">Measured via voltage divider</div>
-    </div>
-
-    <div class="card" style="grid-column:3/5">
-      <div class="label">Recent Fault Logs</div>
-      <div id="faultContainer" style="max-height:320px;overflow:auto;margin-top:8px">
-        <div class="log-empty" id="logEmpty">No faults logged yet.</div>
-        <table id="faultTable" style="display:none">
-          <thead><tr><th>Time</th><th>Temp °C</th><th>Moist %</th><th>Flex</th><th>Res (Ω)</th></tr></thead>
-          <tbody id="faultBody"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="card full" style="display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <div class="label">Instructions</div>
-        <div class="small" style="margin-top:6px">
-          • Press the physical button on the ESP32 to store current reading as baseline.<br>
-          • When any sensor deviates ±20% from baseline a fault is logged and visual/audio alert triggers here.
+    <div class="dashboard-container">
+        <header>
+            <div class="logo">
+                <i>🔍</i>
+                <h1>Corrosion Detection System</h1>
+            </div>
+            <div class="status-indicator">
+                <div class="status-dot"></div>
+                <span>Live Data Streaming</span>
+            </div>
+        </header>
+        
+        <div class="dashboard-grid">
+            <!-- Flex Sensor Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i>📏</i>
+                        <span>Flex Sensor</span>
+                    </div>
+                </div>
+                <div class="value" id="flex-value">--</div>
+                <div class="trend up">+2.5% from last reading</div>
+                <div class="chart-container">
+                    <canvas id="flex-chart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Moisture Level Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i>💧</i>
+                        <span>Moisture Level</span>
+                    </div>
+                </div>
+                <div class="value" id="moisture-value">--<span class="unit">%</span></div>
+                <div class="trend down">-1.2% from last reading</div>
+                <div class="chart-container">
+                    <canvas id="moisture-chart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Temperature Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i>🌡️</i>
+                        <span>Temperature</span>
+                    </div>
+                </div>
+                <div class="value" id="temperature-value">--<span class="unit">°C</span></div>
+                <div class="trend up">+0.8°C from last reading</div>
+                <div class="chart-container">
+                    <canvas id="temperature-chart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Humidity Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i>💨</i>
+                        <span>Humidity</span>
+                    </div>
+                </div>
+                <div class="value" id="humidity-value">--<span class="unit">%</span></div>
+                <div class="trend down">-3.1% from last reading</div>
+                <div class="chart-container">
+                    <canvas id="humidity-chart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Resistance Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i>⚡</i>
+                        <span>Resistance</span>
+                    </div>
+                </div>
+                <div class="value" id="resistance-value">--<span class="unit">Ω</span></div>
+                <div class="trend up">+5.2% from last reading</div>
+                <div class="chart-container">
+                    <canvas id="resistance-chart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Fault Log Card -->
+            <div class="card fault-log">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i>⚠️</i>
+                        <span>Fault Log</span>
+                    </div>
+                    <div class="alert-badge" id="fault-count">0 Alerts</div>
+                </div>
+                <div class="fault-list" id="fault-list">
+                    <!-- Fault items will be dynamically inserted here -->
+                    <div class="fault-item">
+                        <div class="fault-header">
+                            <strong>Corrosion Alert</strong>
+                            <span class="fault-timestamp">2023-11-15 14:32:45</span>
+                        </div>
+                        <div class="fault-values">
+                            <div class="fault-value">
+                                <span>Flex Sensor:</span>
+                                <span>1254</span>
+                            </div>
+                            <div class="fault-value">
+                                <span>Moisture Level:</span>
+                                <span>85%</span>
+                            </div>
+                            <div class="fault-value">
+                                <span>Temperature:</span>
+                                <span>32.5°C</span>
+                            </div>
+                            <div class="fault-value">
+                                <span>Resistance:</span>
+                                <span>1250Ω</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="controls">
+                    <button id="refresh-btn">
+                        <i>🔄</i>
+                        <span>Refresh Data</span>
+                    </button>
+                    <button id="clear-faults-btn" class="danger">
+                        <i>🗑️</i>
+                        <span>Clear Fault Log</span>
+                    </button>
+                </div>
+            </div>
         </div>
-      </div>
-      <div style="text-align:right">
-        <button id="clearBtn" style="padding:8px 12px;border-radius:8px;border:none;background:#111827;color:white;cursor:pointer">Clear Fault List</button>
-      </div>
+        
+        <footer>
+            <p>Corrosion Detection System Dashboard • Last updated: <span id="last-updated">--</span></p>
+        </footer>
     </div>
-  </main>
 
-  <footer>
-    <div class="small">Dashboard connected to Firebase Realtime Database (read-only UI). Host this file on GitHub Pages or Firebase Hosting.</div>
-  </footer>
-
-  <!-- Alert sound (small beep) -->
-  <audio id="alertSound">
-    <source src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAABCxAgAEABAAZGF0YVgAAAAA" type="audio/wav">
-  </audio>
-
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
-    import {
-      getDatabase, ref, onValue, onChildAdded, query, orderByKey, limitToLast, get, remove
-    } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-database.js";
-
-    // ---------- REPLACE with your project config (you already provided this) ----------
-    const firebaseConfig = {
-      apiKey: "AIzaSyAWiIhJ1vXPGl_5pjbPTp-Nu0a_mpTAKOc",
-      authDomain: "corrosion-detection-in-rcc.firebaseapp.com",
-      databaseURL: "https://corrosion-detection-in-rcc-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "corrosion-detection-in-rcc",
-      storageBucket: "corrosion-detection-in-rcc.firebasestorage.app",
-      messagingSenderId: "101927760339",
-      appId: "1:101927760339:web:47c1c2aea070bcc2e73f26"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
-
-    // UI elements
-    const statusEl = document.getElementById('status');
-    const connState = document.getElementById('connState');
-    const dbUrlEl = document.getElementById('dbUrl');
-    const deviceId = document.getElementById('deviceId');
-    const timestampEl = document.getElementById('timestamp');
-
-    const tempVal = document.getElementById('tempVal');
-    const humVal = document.getElementById('humVal');
-    const moistVal = document.getElementById('moistVal');
-    const flexVal = document.getElementById('flexVal');
-    const resVal = document.getElementById('resVal');
-
-    const tempBar = document.getElementById('tempBar');
-    const humBar = document.getElementById('humBar');
-    const moistBar = document.getElementById('moistBar');
-    const flexBar = document.getElementById('flexBar');
-
-    const alertBadge = document.getElementById('alertBadge');
-    const noAlert = document.getElementById('noAlert');
-
-    const faultTable = document.getElementById('faultTable');
-    const faultBody = document.getElementById('faultBody');
-    const logEmpty = document.getElementById('logEmpty');
-    const clearBtn = document.getElementById('clearBtn');
-    const alertSound = document.getElementById('alertSound');
-    const faultContainer = document.getElementById('faultContainer');
-
-    dbUrlEl.innerText = firebaseConfig.databaseURL;
-
-    // ---------- Subscribe to Current_Reading node ----------
-    const currentRef = ref(db, '/Current_Reading');
-    onValue(currentRef, (snap) => {
-      const val = snap.val();
-      if (!val) {
-        statusEl.innerText = "No current reading";
-        connState.innerText = "Connected";
-        return;
-      }
-      statusEl.innerText = "Connected";
-      connState.innerText = "Realtime";
-
-      // If device id present use it
-      if (val.device_id) deviceId.innerText = val.device_id;
-
-      // update UI
-      const t = val.Temperature_C ?? val.temperature ?? val.temp_c ?? null;
-      const h = val.Humidity_ ?? val.humidity ?? val.Humidity ?? val.humidity_pct ?? val.humidity_percent ?? val.humidity || null;
-      const m = val.Moisture_Level ?? val.moisture ?? val.moisture_pct ?? null;
-      const f = val.Flex_Sensor ?? val.flex ?? val.flex_pct ?? null;
-      const r = val.Resistance_Ohms ?? val.resistance ?? val.bar_resistance_ohm ?? val.resistance_ohm ?? null;
-      const ts = val.Timestamp ?? val.timestamp ?? null;
-
-      if (t !== null) {
-        tempVal.innerText = Number(t).toFixed(2);
-        tempBar.style.width = Math.min(100, Math.max(0, (Number(t) / 60) * 100)) + "%";
-      } else tempVal.innerText = "—";
-
-      if (h !== null) {
-        humVal.innerText = Number(h).toFixed(2);
-        humBar.style.width = Math.min(100, Math.max(0, Number(h))) + "%";
-      } else humVal.innerText = "—";
-
-      if (m !== null) {
-        moistVal.innerText = Number(m).toFixed(2);
-        moistBar.style.width = Math.min(100, Math.max(0, Number(m))) + "%";
-      } else moistVal.innerText = "—";
-
-      if (f !== null) {
-        flexVal.innerText = Number(f).toFixed(2);
-        flexBar.style.width = Math.min(100, Math.max(0, Number(f))) + "%";
-      } else flexVal.innerText = "—";
-
-      if (r !== null) {
-        resVal.innerText = Number(r).toFixed(2);
-      } else resVal.innerText = "—";
-
-      if (ts) timestampEl.innerText = ts;
-    });
-
-    // ---------- Subscribe to Fault_Log (new child = new alert) ----------
-    const logsQuery = query(ref(db, '/Fault_Log'), orderByKey(), limitToLast(100));
-    onChildAdded(logsQuery, (snap) => {
-      const entry = snap.val();
-      if (!entry) return;
-
-      // Hide empty text and show table
-      logEmpty.style.display = 'none';
-      faultTable.style.display = 'table';
-
-      // Create row (prepend)
-      const tr = document.createElement('tr');
-      const time = entry.Timestamp ?? entry.timestamp ?? (entry.time ?? '—');
-      const t = entry.Temperature_C ?? entry.temperature ?? entry.temp_c ?? '—';
-      const m = entry.Moisture_Level ?? entry.moisture ?? '—';
-      const f = entry.Flex_Sensor ?? entry.flex ?? '—';
-      const r = entry.Resistance_Ohms ?? entry.resistance ?? '—';
-
-      tr.innerHTML = `<td>${time}</td><td>${Number(t).toFixed(2)}</td><td>${Number(m).toFixed(2)}</td><td>${Number(f).toFixed(2)}</td><td>${Number(r).toFixed(2)}</td>`;
-
-      // add at top
-      if (faultBody.firstChild) faultBody.insertBefore(tr, faultBody.firstChild);
-      else faultBody.appendChild(tr);
-
-      // trigger visual/audio alert
-      alertBadge.style.display = 'inline-flex';
-      noAlert.style.display = 'none';
-      // flash the badge
-      alertBadge.classList.remove('flash');
-      void alertBadge.offsetWidth; // restart animation
-      alertBadge.classList.add('flash');
-      // play small beep
-      try { alertSound.play(); } catch(e) {}
-
-      // scroll into view
-      tr.scrollIntoView({behavior:'smooth', block:'center'});
-    });
-
-    // Clear fault list (removes from firebase) - optional
-    clearBtn.addEventListener('click', async () => {
-      if (!confirm('Clear all fault logs from the database? This will DELETE Fault_Log node.')) return;
-      try {
-        await remove(ref(db, '/Fault_Log'));
-        faultBody.innerHTML = '';
-        faultTable.style.display = 'none';
-        logEmpty.style.display = 'block';
-      } catch (err) {
-        alert('Failed to clear logs: ' + err);
-      }
-    });
-
-    // initial load of last logs to show table header if any
-    (async () => {
-      const snap = await get(query(ref(db, '/Fault_Log'), orderByKey(), limitToLast(20)));
-      if (snap.exists()) {
-        logEmpty.style.display = 'none';
-        faultTable.style.display = 'table';
-        const val = snap.val();
-        const rows = Object.values(val).reverse();
-        rows.forEach(entry => {
-          const tr = document.createElement('tr');
-          const time = entry.Timestamp ?? entry.timestamp ?? (entry.time ?? '—');
-          const t = entry.Temperature_C ?? entry.temperature ?? entry.temp_c ?? '—';
-          const m = entry.Moisture_Level ?? entry.moisture ?? '—';
-          const f = entry.Flex_Sensor ?? entry.flex ?? '—';
-          const r = entry.Resistance_Ohms ?? entry.resistance ?? '—';
-          tr.innerHTML = `<td>${time}</td><td>${Number(t).toFixed(2)}</td><td>${Number(m).toFixed(2)}</td><td>${Number(f).toFixed(2)}</td><td>${Number(r).toFixed(2)}</td>`;
-          faultBody.appendChild(tr);
+    <script>
+        // Initialize charts
+        const chartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    display: false
+                },
+                y: {
+                    display: false
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            elements: {
+                point: {
+                    radius: 0
+                },
+                line: {
+                    tension: 0.4
+                }
+            }
+        };
+        
+        // Create charts
+        const flexChart = new Chart(document.getElementById('flex-chart'), {
+            type: 'line',
+            data: {
+                labels: Array(10).fill(''),
+                datasets: [{
+                    data: Array(10).fill(0),
+                    borderColor: '#3498db',
+                    backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                    fill: true,
+                    borderWidth: 2
+                }]
+            },
+            options: chartOptions
         });
-      }
-    })();
-
-  </script>
+        
+        const moistureChart = new Chart(document.getElementById('moisture-chart'), {
+            type: 'line',
+            data: {
+                labels: Array(10).fill(''),
+                datasets: [{
+                    data: Array(10).fill(0),
+                    borderColor: '#2ecc71',
+                    backgroundColor: 'rgba(46, 204, 113, 0.1)',
+                    fill: true,
+                    borderWidth: 2
+                }]
+            },
+            options: chartOptions
+        });
+        
+        const temperatureChart = new Chart(document.getElementById('temperature-chart'), {
+            type: 'line',
+            data: {
+                labels: Array(10).fill(''),
+                datasets: [{
+                    data: Array(10).fill(0),
+                    borderColor: '#e74c3c',
+                    backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                    fill: true,
+                    borderWidth: 2
+                }]
+            },
+            options: chartOptions
+        });
+        
+        const humidityChart = new Chart(document.getElementById('humidity-chart'), {
+            type: 'line',
+            data: {
+                labels: Array(10).fill(''),
+                datasets: [{
+                    data: Array(10).fill(0),
+                    borderColor: '#9b59b6',
+                    backgroundColor: 'rgba(155, 89, 182, 0.1)',
+                    fill: true,
+                    borderWidth: 2
+                }]
+            },
+            options: chartOptions
+        });
+        
+        const resistanceChart = new Chart(document.getElementById('resistance-chart'), {
+            type: 'line',
+            data: {
+                labels: Array(10).fill(''),
+                datasets: [{
+                    data: Array(10).fill(0),
+                    borderColor: '#f39c12',
+                    backgroundColor: 'rgba(243, 156, 18, 0.1)',
+                    fill: true,
+                    borderWidth: 2
+                }]
+            },
+            options: chartOptions
+        });
+        
+        // Firebase configuration
+        const firebaseConfig = {
+            databaseURL: "https://corrosion-detection-in-rcc-default-rtdb.asia-southeast1.firebasedatabase.app/"
+        };
+        
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        
+        // DOM elements
+        const flexValue = document.getElementById('flex-value');
+        const moistureValue = document.getElementById('moisture-value');
+        const temperatureValue = document.getElementById('temperature-value');
+        const humidityValue = document.getElementById('humidity-value');
+        const resistanceValue = document.getElementById('resistance-value');
+        const faultList = document.getElementById('fault-list');
+        const faultCount = document.getElementById('fault-count');
+        const lastUpdated = document.getElementById('last-updated');
+        const refreshBtn = document.getElementById('refresh-btn');
+        const clearFaultsBtn = document.getElementById('clear-faults-btn');
+        
+        // Firebase references
+        const currentReadingRef = database.ref('/Current_Reading');
+        const faultLogRef = database.ref('/Fault_Log');
+        
+        // Listen for real-time updates from Firebase
+        currentReadingRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                updateDashboard(data);
+            }
+        });
+        
+        faultLogRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            updateFaultLog(data);
+        });
+        
+        // Update dashboard with current readings
+        function updateDashboard(data) {
+            // Handle different key naming variations
+            const flex = data.Flex_Sensor || data.flex_sensor || data.flex || '--';
+            const moisture = data.Moisture_Level || data.moisture_level || data.moist || '--';
+            const temperature = data.Temperature_C || data.temperature_c || data.temp_c || data.temp || '--';
+            const humidity = data.Humidity_ || data.humidity_ || data.humidity || data.hum || '--';
+            const resistance = data.Resistance_Ohms || data.resistance_ohms || data.resistance || data.res || '--';
+            const timestamp = data.Timestamp || new Date().toLocaleString();
+            
+            // Update values
+            flexValue.textContent = flex;
+            moistureValue.textContent = moisture;
+            temperatureValue.textContent = temperature;
+            humidityValue.textContent = humidity;
+            resistanceValue.textContent = resistance;
+            lastUpdated.textContent = timestamp;
+            
+            // Update charts with new data
+            updateChart(flexChart, flex);
+            updateChart(moistureChart, moisture);
+            updateChart(temperatureChart, temperature);
+            updateChart(humidityChart, humidity);
+            updateChart(resistanceChart, resistance);
+        }
+        
+        // Update fault log
+        function updateFaultLog(data) {
+            faultList.innerHTML = '';
+            
+            if (!data) {
+                faultCount.textContent = '0 Alerts';
+                return;
+            }
+            
+            const faults = Object.values(data);
+            faultCount.textContent = `${faults.length} Alert${faults.length !== 1 ? 's' : ''}`;
+            
+            faults.forEach(fault => {
+                const flex = fault.Flex_Sensor || fault.flex_sensor || fault.flex || '--';
+                const moisture = fault.Moisture_Level || fault.moisture_level || fault.moist || '--';
+                const temperature = fault.Temperature_C || fault.temperature_c || fault.temp_c || fault.temp || '--';
+                const resistance = fault.Resistance_Ohms || fault.resistance_ohms || fault.resistance || fault.res || '--';
+                const timestamp = fault.Timestamp || 'Unknown time';
+                
+                const faultItem = document.createElement('div');
+                faultItem.className = 'fault-item';
+                faultItem.innerHTML = `
+                    <div class="fault-header">
+                        <strong>Corrosion Alert</strong>
+                        <span class="fault-timestamp">${timestamp}</span>
+                    </div>
+                    <div class="fault-values">
+                        <div class="fault-value">
+                            <span>Flex Sensor:</span>
+                            <span>${flex}</span>
+                        </div>
+                        <div class="fault-value">
+                            <span>Moisture Level:</span>
+                            <span>${moisture}</span>
+                        </div>
+                        <div class="fault-value">
+                            <span>Temperature:</span>
+                            <span>${temperature}°C</span>
+                        </div>
+                        <div class="fault-value">
+                            <span>Resistance:</span>
+                            <span>${resistance}Ω</span>
+                        </div>
+                    </div>
+                `;
+                
+                faultList.appendChild(faultItem);
+            });
+        }
+        
+        // Update chart with new data point
+        function updateChart(chart, value) {
+            if (value === '--') return;
+            
+            const numValue = parseFloat(value);
+            if (isNaN(numValue)) return;
+            
+            chart.data.labels.push('');
+            chart.data.datasets[0].data.push(numValue);
+            
+            if (chart.data.labels.length > 10) {
+                chart.data.labels.shift();
+                chart.data.datasets[0].data.shift();
+            }
+            
+            chart.update('none');
+        }
+        
+        // Button event listeners
+        refreshBtn.addEventListener('click', () => {
+            // Force refresh by re-reading the data
+            currentReadingRef.once('value').then(snapshot => {
+                const data = snapshot.val();
+                if (data) {
+                    updateDashboard(data);
+                }
+            });
+            
+            // Show refresh animation
+            refreshBtn.innerHTML = '<i>🔄</i> <span>Refreshing...</span>';
+            setTimeout(() => {
+                refreshBtn.innerHTML = '<i>🔄</i> <span>Refresh Data</span>';
+            }, 1000);
+        });
+        
+        clearFaultsBtn.addEventListener('click', () => {
+            if (confirm('Are you sure you want to clear the entire fault log? This action cannot be undone.')) {
+                faultLogRef.remove()
+                    .then(() => {
+                        alert('Fault log cleared successfully.');
+                    })
+                    .catch(error => {
+                        alert('Error clearing fault log: ' + error.message);
+                    });
+            }
+        });
+        
+        // Initialize with sample data if Firebase is empty
+        setTimeout(() => {
+            currentReadingRef.once('value').then(snapshot => {
+                if (!snapshot.exists()) {
+                    // Set initial sample data
+                    const sampleData = {
+                        Flex_Sensor: 1024,
+                        Moisture_Level: 45,
+                        Temperature_C: 25.5,
+                        Humidity_: 65,
+                        Resistance_Ohms: 1200,
+                        Timestamp: new Date().toLocaleString()
+                    };
+                    
+                    currentReadingRef.set(sampleData);
+                }
+            });
+        }, 2000);
+    </script>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </body>
 </html>
